@@ -71,6 +71,25 @@ class DanmakuRequest {
     return minAnimeId;
   }
 
+  // 弹弹 Play 提供的搜索作品信息的接口
+  static searchAnimes(String title) async {
+    var httpHeaders = {
+      'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_3_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15',
+      'referer': '',
+    };
+    Map<String, String> keywordMap = {
+      'keyword': title,
+    };
+
+    final res = await Request().get(Api.dandanSearch,
+        data: keywordMap, options: Options(headers: httpHeaders));
+    Map<String, dynamic> jsonData = res.data;
+    List<dynamic> animes = jsonData['animes'];
+
+    return animes;
+  }
+
   static getDanDanmaku(int bangumiID, int episode) async {
     List<Danmaku> danmakus = [];
     if (bangumiID == 100000) {

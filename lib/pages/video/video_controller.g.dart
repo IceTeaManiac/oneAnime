@@ -25,6 +25,39 @@ mixin _$VideoController on _VideoController, Store {
     });
   }
 
+  late final _$searchingDanmakuAtom =
+      Atom(name: '_VideoController.searchingDanmaku', context: context);
+
+  @override
+  bool get searchingDanmaku {
+    _$searchingDanmakuAtom.reportRead();
+    return super.searchingDanmaku;
+  }
+
+  @override
+  set searchingDanmaku(bool value) {
+    _$searchingDanmakuAtom.reportWrite(value, super.searchingDanmaku, () {
+      super.searchingDanmaku = value;
+    });
+  }
+
+  late final _$danmakuSearchingResultAtom =
+      Atom(name: '_VideoController.danmakuSearchingResult', context: context);
+
+  @override
+  List<dynamic> get danmakuSearchingResult {
+    _$danmakuSearchingResultAtom.reportRead();
+    return super.danmakuSearchingResult;
+  }
+
+  @override
+  set danmakuSearchingResult(List<dynamic> value) {
+    _$danmakuSearchingResultAtom
+        .reportWrite(value, super.danmakuSearchingResult, () {
+      super.danmakuSearchingResult = value;
+    });
+  }
+
   late final _$danDanmakusAtom =
       Atom(name: '_VideoController.danDanmakus', context: context);
 
@@ -301,6 +334,8 @@ mixin _$VideoController on _VideoController, Store {
   String toString() {
     return '''
 token: ${token},
+searchingDanmaku: ${searchingDanmaku},
+danmakuSearchingResult: ${danmakuSearchingResult},
 danDanmakus: ${danDanmakus},
 playing: ${playing},
 isBuffering: ${isBuffering},

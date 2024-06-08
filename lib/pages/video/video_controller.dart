@@ -25,6 +25,14 @@ abstract class _VideoController with Store {
   List<String> aniDanmakuToken = [];
 
   @observable
+  bool searchingDanmaku = false;
+  @observable
+  List<dynamic> danmakuSearchingResult = [];
+
+  int customBangumiID = 0; // 用户自行选择的 bangumiID，用于搜索弹幕
+  String lastSearchingKeyword = ''; // 记录用户上次搜索弹幕使用的关键字
+
+  @observable
   Map<int, List<Danmaku>> danDanmakus = {};
 
   @observable
@@ -135,10 +143,14 @@ abstract class _VideoController with Store {
   }
 
   Future getDanDanmaku(String title, int episode) async {
-    // 极为糟糕的临时措施，但作者现在就要看高达
-    // if (title.contains('鋼彈')) {
-    //   title = title.replaceAll('鋼彈', '高达');
-    // }
+    // 若用户自行选择的 customBangumiID 存在，那么用其搜索弹幕
+    if (customBangumiID != 0) {
+      var res = await DanmakuRequest.getDanDanmaku(customBangumiID, episode);
+      addDanmakus(res);
+      debugPrint('当前弹幕库 ${danDanmakus.length}');
+      return;
+    }
+
     bool danmakuEnhance =
         setting.get(SettingBoxKey.danmakuEnhance, defaultValue: true);
     bangumiID = await DanmakuRequest.getBangumiID(title);
@@ -186,5 +198,24 @@ abstract class _VideoController with Store {
       }
     }
     debugPrint('当前弹幕库 ${danDanmakus.length}');
+  }
+
+  // 根据关键字搜索弹幕
+  Future searchDanmaku(String title) async {
+    searchingDanmaku = true;
+    lastSearchingKeyword = title;
+    try {
+      danmakuSearchingResult = await DanmakuRequest.searchAnimes(title);
+    } finally {
+      searchingDanmaku = false;
+    }
+  }
+
+  // 清空弹幕搜索数据
+  void clearDanmakuSearchingData() {
+    searchingDanmaku = false;
+    danmakuSearchingResult.clear();
+    customBangumiID = 0;
+    lastSearchingKeyword = '';
   }
 }

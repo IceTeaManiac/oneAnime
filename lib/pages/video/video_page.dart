@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -130,6 +131,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
     windowManager.setAlwaysOnTop(false);
     windowManager.removeListener(this);
     playerController.dispose();
+    videoController.clearDanmakuSearchingData();
     super.dispose();
   }
 
@@ -382,6 +384,91 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                   child: Text(isSending ? '发送中...' : '发送'),
                 );
               })
+            ],
+          );
+        });
+  }
+
+  void selectDanmaku() {
+    final TextEditingController textController =
+        TextEditingController(text: videoController.lastSearchingKeyword);
+    SmartDialog.show(
+        useAnimation: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('选择弹幕'),
+            content: Observer(
+              builder: (_) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: textController,
+                    onSubmitted: (inputValue) {
+                      videoController.searchDanmaku(inputValue);
+                    },
+                  ),
+                  Container(
+                    width: min(MediaQuery.of(context).size.width * 0.8, 400),
+                    height: min(MediaQuery.of(context).size.height * 0.8, 200),
+                    margin: const EdgeInsets.only(top: 30),
+                    child: videoController.searchingDanmaku
+                        ? UnconstrainedBox(
+                            child: SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: const CircularProgressIndicator(),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount:
+                                videoController.danmakuSearchingResult.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              final anime =
+                                  videoController.danmakuSearchingResult[index];
+                              var animeTitle = anime['animeTitle'];
+                              var animeId = anime['animeId'];
+                              return ListTile(
+                                title: Text(animeTitle),
+                                selected:
+                                    animeId == videoController.customBangumiID,
+                                selectedColor: Colors.indigo.shade100,
+                                onTap: () async {
+                                  try {
+                                    SmartDialog.showLoading(msg: '弹幕获取中');
+                                    videoController.customBangumiID = animeId;
+                                    videoController.danDanmakus.clear();
+                                    await videoController.getDanDanmaku(
+                                        animeTitle, videoController.episode);
+                                    SmartDialog.dismiss(); // 关闭 弹幕获取中 弹窗
+                                  } catch (e) {
+                                    SmartDialog.dismiss(); // 请求出错时关闭 弹幕获取中 弹窗
+                                    SmartDialog.showToast('获取弹幕失败');
+                                    return;
+                                  }
+                                  if (videoController.danDanmakus.isEmpty) {
+                                    SmartDialog.showToast('当前剧集没有匹配弹幕');
+                                  }
+                                  danmakuController.clear();
+                                  playerTimer?.cancel();
+                                  playerTimer = getPlayerTimer();
+                                  SmartDialog.dismiss();
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => SmartDialog.dismiss(),
+                child: Text(
+                  '取消',
+                  style:
+                      TextStyle(color: Theme.of(context).colorScheme.outline),
+                ),
+              ),
             ],
           );
         });
@@ -996,6 +1083,19 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                                     },
                                                   )
                                                 : Container(),
+                                            (videoController.danmakuOn &&
+                                                    (Platform.isLinux ||
+                                                        Platform.isMacOS ||
+                                                        Platform.isWindows ||
+                                                        videoController
+                                                            .androidFullscreen))
+                                                ? IconButton(
+                                                    color: Colors.white,
+                                                    icon: const Icon(
+                                                        Icons.add_box),
+                                                    onPressed: selectDanmaku,
+                                                  )
+                                                : Container(),
                                             IconButton(
                                               color: Colors.white,
                                               icon: Icon(videoController
@@ -1003,15 +1103,6 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                                   ? Icons.comment
                                                   : Icons.comments_disabled),
                                               onPressed: () {
-                                                if (videoController
-                                                        .danDanmakus.length ==
-                                                    0) {
-                                                  SmartDialog.showToast(
-                                                      '当前剧集没有找到弹幕的说',
-                                                      displayType:
-                                                          SmartToastType.last);
-                                                  return;
-                                                }
                                                 danmakuController.clear();
                                                 videoController.danmakuOn =
                                                     !videoController.danmakuOn;
