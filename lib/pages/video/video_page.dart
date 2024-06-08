@@ -394,6 +394,9 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
         TextEditingController(text: videoController.lastSearchingKeyword);
     SmartDialog.show(
         useAnimation: false,
+        onDismiss: () {
+          FocusScope.of(context).requestFocus(_focusNode);
+        },
         builder: (context) {
           return AlertDialog(
             title: const Text('选择弹幕'),
@@ -403,6 +406,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                 children: [
                   TextField(
                     controller: textController,
+                    textInputAction: TextInputAction.search,
                     onSubmitted: (inputValue) {
                       videoController.searchDanmaku(inputValue);
                     },
@@ -412,11 +416,11 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                     height: min(MediaQuery.of(context).size.height * 0.8, 200),
                     margin: const EdgeInsets.only(top: 30),
                     child: videoController.searchingDanmaku
-                        ? UnconstrainedBox(
+                        ? const UnconstrainedBox(
                             child: SizedBox(
                               width: 40,
                               height: 40,
-                              child: const CircularProgressIndicator(),
+                              child: CircularProgressIndicator(),
                             ),
                           )
                         : ListView.builder(
@@ -446,7 +450,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                     return;
                                   }
                                   if (videoController.danDanmakus.isEmpty) {
-                                    SmartDialog.showToast('当前剧集没有匹配弹幕');
+                                    SmartDialog.showToast('当前剧集没有匹配的弹幕');
                                   }
                                   danmakuController.clear();
                                   playerTimer?.cancel();
