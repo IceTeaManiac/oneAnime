@@ -922,7 +922,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                             TextButton(
                                               style: ButtonStyle(
                                                 padding:
-                                                    WidgetStateProperty.all(
+                                                    MaterialStateProperty.all(
                                                         EdgeInsets.zero),
                                               ),
                                               onPressed: () =>

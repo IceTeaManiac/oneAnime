@@ -54,7 +54,7 @@ class _BangumiPanelState extends State<BangumiPanel> {
                           height: 34,
                           child: TextButton(
                             style: ButtonStyle(
-                              padding: WidgetStateProperty.all(EdgeInsets.zero),
+                              padding: MaterialStateProperty.all(EdgeInsets.zero),
                             ),
       
                             // Todo 展示更多
