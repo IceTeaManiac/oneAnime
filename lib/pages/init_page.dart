@@ -1,16 +1,14 @@
-import 'dart:io';
 import 'dart:ffi';
-import 'package:ffi/ffi.dart';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive/hive.dart';
-import 'package:oneanime/pages/my/my_controller.dart';
-import 'package:oneanime/utils/storage.dart';
-import 'package:flutter_modular/flutter_modular.dart';
 import 'package:oneanime/opencc_generated_bindings.dart';
+import 'package:oneanime/pages/my/my_controller.dart';
 import 'package:oneanime/pages/popular/popular_controller.dart';
-import 'package:adaptive_theme/adaptive_theme.dart';
+import 'package:oneanime/utils/storage.dart';
+import 'package:path/path.dart';
 
 class InitPage extends StatefulWidget {
   const InitPage({super.key});
@@ -58,7 +56,11 @@ class _InitPageState extends State<InitPage> {
     if (Platform.isLinux) {
       final PopularController popularController = Modular.get<PopularController>();
       if (popularController.libopencc == '') {
-        String fullPath = "lib/opencc.so";
+        // 获取 Linux 下当前进程可执行文件的路径
+        var executablePath = File('/proc/self/exe').resolveSymbolicLinksSync();
+        // 获取可执行文件所在的目录
+        var executableDir = dirname(executablePath);
+        var fullPath = join(executableDir, 'lib', 'opencc.so');
         try {
           final lib = DynamicLibrary.open(fullPath);
           popularController.libopencc = opencc(lib);
