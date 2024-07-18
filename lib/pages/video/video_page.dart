@@ -27,6 +27,7 @@ import 'package:hive/hive.dart';
 import 'package:oneanime/bean/appbar/drag_to_move_bar.dart' as dtb;
 import 'package:oneanime/utils/storage.dart';
 import 'package:oneanime/utils/utils.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
@@ -35,7 +36,8 @@ class VideoPage extends StatefulWidget {
   State<VideoPage> createState() => _VideoPageState();
 }
 
-class _VideoPageState extends State<VideoPage> with WindowListener {
+class _VideoPageState extends State<VideoPage>
+    with WindowListener, WidgetsBindingObserver {
   // var _key = new GlobalKey<ScaffoldState>();
   dynamic navigationBarState;
   Box setting = GStorage.setting;
@@ -48,6 +50,11 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
 
   // 弹幕
   final _danmuKey = GlobalKey();
+  late bool _showStroke;
+  late double _opacity;
+  late int _duration;
+  late double _fontSize;
+  late double danmakuArea;
 
   Timer? hideTimer;
   Timer? playerTimer;
@@ -77,19 +84,60 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
     });
   }
 
+  void _handleShortSeek() {
+    try {
+      if (playerTimer != null) {
+        playerTimer!.cancel();
+      }
+      videoController.currentPosition =
+          Duration(seconds: videoController.currentPosition.inSeconds + 10);
+      playerController.seek(videoController.currentPosition);
+      playerTimer = getPlayerTimer();
+    } catch (e) {
+      debugPrint(e.toString());
+    }
+  }
+
+  void _handleFullscreen() {
+    if (videoController.androidFullscreen) {
+      try {
+        danmakuController.clear();
+      } catch (_) {}
+      playerController.exitFullScreen();
+    } else {
+      playerController.enterFullScreen();
+    }
+    videoController.androidFullscreen = !videoController.androidFullscreen;
+  }
+
+  void _handleDanmaku() {
+    danmakuController.clear();
+    videoController.danmakuOn = !videoController.danmakuOn;
+    debugPrint('弹幕开关变更为 ${videoController.danmakuOn}');
+  }
+
+  /// 处理 Windows 重新前台
   @override
   void onWindowRestore() {
     danmakuController.clear();
   }
 
+  /// 处理 Android/iOS 应用后台或熄屏
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      playerController.pause();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_focusNode);
     });
-    videoController.danmakuOn =
-        setting.get(SettingBoxKey.danmakuEnabledByDefault, defaultValue: false);
+    WakelockPlus.enable();
     bool alwaysOntop =
         setting.get(SettingBoxKey.alwaysOntop, defaultValue: true);
     if (alwaysOntop &&
@@ -100,6 +148,16 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
   }
 
   void init() async {
+    // 弹幕设置
+    videoController.danmakuOn =
+        setting.get(SettingBoxKey.danmakuEnabledByDefault, defaultValue: false);
+    _showStroke = setting.get(SettingBoxKey.danmakuBorder, defaultValue: true);
+    _opacity = setting.get(SettingBoxKey.danmakuOpacity, defaultValue: 1.0);
+    _duration = setting.get(SettingBoxKey.danmakuDuration, defaultValue: 8);
+    _fontSize = setting.get(SettingBoxKey.danmakuFontSize,
+        defaultValue: (Platform.isIOS || Platform.isAndroid) ? 16.0 : 25.0);
+    danmakuArea = setting.get(SettingBoxKey.danmakuArea, defaultValue: 1.0);
+    // 播放器初始化
     videoController.playerSpeed = 1.0;
     playerController.videoUrl = videoController.videoUrl;
     playerController.videoCookie = videoController.videoCookie;
@@ -123,6 +181,8 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
   @override
   void dispose() {
     _focusNode.dispose();
+    WakelockPlus.disable();
+    WidgetsBinding.instance.removeObserver(this);
     try {
       playerTimer?.cancel();
     } catch (e) {
@@ -130,6 +190,9 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
     }
     historyController.updateHistory(
         videoController.link, videoController.currentPosition.inSeconds);
+    videoController.playing = false;
+    videoController.currentPosition = Duration.zero;
+    videoController.duration = Duration.zero;
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
       windowManager.setAlwaysOnTop(false);
       windowManager.removeListener(this);
@@ -158,7 +221,10 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
             Future.delayed(
                     Duration(milliseconds: idx * 1000 ~/ danmakus.length))
                 .then((_) {
-              if (mounted && playerController.playing && videoController.danmakuOn) {
+              if (mounted &&
+                  playerController.playing &&
+                  videoController.danmakuOn &&
+                  !videoController.isBuffering) {
                 danmakuController
                     .addDanmaku(DanmakuContentItem(danmakus[idx].m));
               }
@@ -493,18 +559,6 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
             ? Provider.of<SideNavigationBarState>(context, listen: false)
             : Provider.of<NavigationBarState>(context, listen: false);
 
-    // 弹幕设置
-    // bool _running = true;
-    bool _showStroke =
-        setting.get(SettingBoxKey.danmakuBorder, defaultValue: true);
-    double _opacity =
-        setting.get(SettingBoxKey.danmakuOpacity, defaultValue: 1.0);
-    int _duration = 8;
-    double _fontSize = setting.get(SettingBoxKey.danmakuFontSize,
-        defaultValue: (Platform.isIOS || Platform.isAndroid) ? 16.0 : 25.0);
-    double danmakuArea =
-        setting.get(SettingBoxKey.danmakuArea, defaultValue: 1.0);
-
     return PopScope(
       // key: _key,
       canPop: false,
@@ -519,6 +573,10 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                 Container(
                   color: Colors.black,
                   child: MouseRegion(
+                    cursor: (videoController.androidFullscreen &&
+                            !videoController.showPositioned)
+                        ? SystemMouseCursors.none
+                        : SystemMouseCursors.basic,
                     onHover: (_) {
                       _handleTap();
                     },
@@ -558,20 +616,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                 if (event.logicalKey ==
                                     LogicalKeyboardKey.arrowRight) {
                                   debugPrint('右方向键被按下');
-                                  try {
-                                    if (playerTimer != null) {
-                                      playerTimer!.cancel();
-                                    }
-                                    videoController.currentPosition = Duration(
-                                        seconds: videoController
-                                                .currentPosition.inSeconds +
-                                            10);
-                                    playerController
-                                        .seek(videoController.currentPosition);
-                                    playerTimer = getPlayerTimer();
-                                  } catch (e) {
-                                    debugPrint(e.toString());
-                                  }
+                                  _handleShortSeek();
                                 }
                                 // 左方向键被按下
                                 if (event.logicalKey ==
@@ -608,6 +653,16 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                     videoController.androidFullscreen =
                                         !videoController.androidFullscreen;
                                   }
+                                }
+                                // F键被按下
+                                if (event.logicalKey ==
+                                    LogicalKeyboardKey.keyF) {
+                                  _handleFullscreen();
+                                }
+                                // D键盘被按下
+                                if (event.logicalKey ==
+                                    LogicalKeyboardKey.keyD) {
+                                  _handleDanmaku();
                                 }
                               }
                             },
@@ -658,93 +713,100 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                             Platform.isMacOS
                                         ? Container()
                                         : GestureDetector(
+                                            onDoubleTap: _handleShortSeek,
                                             onHorizontalDragUpdate:
                                                 (DragUpdateDetails details) {
-                                            videoController.showPosition = true;
-                                            if (playerTimer != null) {
-                                              // debugPrint('检测到拖动, 定时器取消');
-                                              playerTimer!.cancel();
-                                            }
-                                            playerController.pause();
-                                            final double scale = 180000 /
-                                                MediaQuery.sizeOf(context)
-                                                    .width;
-                                            videoController.currentPosition =
-                                                Duration(
-                                                    milliseconds: videoController
-                                                            .currentPosition
-                                                            .inMilliseconds +
-                                                        (details.delta.dx *
-                                                                scale)
-                                                            .round());
-                                          }, onHorizontalDragEnd:
+                                              videoController.showPosition =
+                                                  true;
+                                              if (playerTimer != null) {
+                                                // debugPrint('检测到拖动, 定时器取消');
+                                                playerTimer!.cancel();
+                                              }
+                                              playerController.pause();
+                                              final double scale = 180000 /
+                                                  MediaQuery.sizeOf(context)
+                                                      .width;
+                                              videoController.currentPosition =
+                                                  Duration(
+                                                      milliseconds: videoController
+                                                              .currentPosition
+                                                              .inMilliseconds +
+                                                          (details.delta.dx *
+                                                                  scale)
+                                                              .round());
+                                            },
+                                            onHorizontalDragEnd:
                                                 (DragEndDetails details) {
-                                            playerController.seek(
-                                                videoController
-                                                    .currentPosition);
-                                            playerController.play();
-                                            playerTimer = getPlayerTimer();
-                                            videoController.showPosition =
-                                                false;
-                                          }, onVerticalDragUpdate:
+                                              playerController.seek(
+                                                  videoController
+                                                      .currentPosition);
+                                              playerController.play();
+                                              playerTimer = getPlayerTimer();
+                                              videoController.showPosition =
+                                                  false;
+                                            },
+                                            onVerticalDragUpdate:
                                                 (DragUpdateDetails
                                                     details) async {
-                                            final double totalWidth =
-                                                MediaQuery.sizeOf(context)
-                                                    .width;
-                                            final double totalHeight =
-                                                MediaQuery.sizeOf(context)
-                                                    .height;
-                                            final double tapPosition =
-                                                details.localPosition.dx;
-                                            final double sectionWidth =
-                                                totalWidth / 2;
-                                            final double delta =
-                                                details.delta.dy;
+                                              final double totalWidth =
+                                                  MediaQuery.sizeOf(context)
+                                                      .width;
+                                              final double totalHeight =
+                                                  MediaQuery.sizeOf(context)
+                                                      .height;
+                                              final double tapPosition =
+                                                  details.localPosition.dx;
+                                              final double sectionWidth =
+                                                  totalWidth / 2;
+                                              final double delta =
+                                                  details.delta.dy;
 
-                                            /// 非全屏时禁用
-                                            if (!videoController
-                                                .androidFullscreen) {
-                                              return;
-                                            }
-                                            if (tapPosition < sectionWidth) {
-                                              // 左边区域
-                                              videoController.showBrightness =
-                                                  true;
-                                              try {
-                                                videoController.brightness =
-                                                    await ScreenBrightness()
-                                                        .current;
-                                              } catch (e) {
-                                                debugPrint(e.toString());
+                                              /// 非全屏时禁用
+                                              if (!videoController
+                                                  .androidFullscreen) {
+                                                return;
                                               }
-                                              final double level =
-                                                  (totalHeight) * 3;
-                                              final double brightness =
-                                                  videoController.brightness -
-                                                      delta / level;
-                                              final double result =
-                                                  brightness.clamp(0.0, 1.0);
-                                              setBrightness(result);
-                                            } else {
-                                              // 右边区域
-                                              videoController.showVolume = true;
-                                              final double level =
-                                                  (totalHeight) * 3;
-                                              final double volume =
-                                                  videoController.volume -
-                                                      delta / level;
-                                              final double result =
-                                                  volume.clamp(0.0, 1.0);
-                                              setVolume(result);
-                                              videoController.volume = result;
-                                            }
-                                          }, onVerticalDragEnd:
+                                              if (tapPosition < sectionWidth) {
+                                                // 左边区域
+                                                videoController.showBrightness =
+                                                    true;
+                                                try {
+                                                  videoController.brightness =
+                                                      await ScreenBrightness()
+                                                          .current;
+                                                } catch (e) {
+                                                  debugPrint(e.toString());
+                                                }
+                                                final double level =
+                                                    (totalHeight) * 3;
+                                                final double brightness =
+                                                    videoController.brightness -
+                                                        delta / level;
+                                                final double result =
+                                                    brightness.clamp(0.0, 1.0);
+                                                setBrightness(result);
+                                              } else {
+                                                // 右边区域
+                                                videoController.showVolume =
+                                                    true;
+                                                final double level =
+                                                    (totalHeight) * 3;
+                                                final double volume =
+                                                    videoController.volume -
+                                                        delta / level;
+                                                final double result =
+                                                    volume.clamp(0.0, 1.0);
+                                                setVolume(result);
+                                                videoController.volume = result;
+                                              }
+                                            },
+                                            onVerticalDragEnd:
                                                 (DragEndDetails details) {
-                                            videoController.showBrightness =
-                                                false;
-                                            videoController.showVolume = false;
-                                          })),
+                                              videoController.showBrightness =
+                                                  false;
+                                              videoController.showVolume =
+                                                  false;
+                                            })),
                                 // 顶部进度条
                                 Positioned(
                                     top: 25,
@@ -875,7 +937,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                 // 自定义顶部组件
                                 (videoController.showPositioned ||
                                         !playerController
-                                            .mediaPlayer.state.playing)
+                                            .mediaPlayer.value.isPlaying)
                                     ? Positioned(
                                         top: 0,
                                         left: 0,
@@ -967,7 +1029,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                 // 自定义播放器底部组件
                                 (videoController.showPositioned ||
                                         !playerController
-                                            .mediaPlayer.state.playing)
+                                            .mediaPlayer.value.isPlaying)
                                     ? Positioned(
                                         bottom: 0,
                                         left: 0,
@@ -1116,11 +1178,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                                   ? Icons.comment
                                                   : Icons.comments_disabled),
                                               onPressed: () {
-                                                danmakuController.clear();
-                                                videoController.danmakuOn =
-                                                    !videoController.danmakuOn;
-                                                debugPrint(
-                                                    '弹幕开关变更为 ${videoController.danmakuOn}');
+                                                _handleDanmaku();
                                               },
                                             ),
                                             IconButton(
@@ -1130,21 +1188,7 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                                                   ? Icons.fullscreen_exit
                                                   : Icons.fullscreen),
                                               onPressed: () {
-                                                if (videoController
-                                                    .androidFullscreen) {
-                                                  try {
-                                                    danmakuController.clear();
-                                                  } catch (_) {}
-                                                  playerController
-                                                      .exitFullScreen();
-                                                } else {
-                                                  playerController
-                                                      .enterFullScreen();
-                                                }
-                                                videoController
-                                                        .androidFullscreen =
-                                                    !videoController
-                                                        .androidFullscreen;
+                                                _handleFullscreen();
                                               },
                                             ),
                                           ],
@@ -1159,13 +1203,13 @@ class _VideoPageState extends State<VideoPage> with WindowListener {
                     ),
                   ),
                 ),
-
                 videoController.androidFullscreen
                     ? Container()
                     : BangumiPanel(
-                        sheetHeight: MediaQuery.sizeOf(context).height -
-                            MediaQuery.of(context).padding.top -
-                            MediaQuery.sizeOf(context).width * 9 / 16,
+                        title: videoController.title,
+                        episodeLength: videoController.token.length,
+                        currentEpisode: videoController.episode,
+                        onChangeEpisode: videoController.changeEpisode,
                       ),
               ],
             );

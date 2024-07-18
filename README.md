@@ -4,8 +4,9 @@
 
 ## 支持平台
 
-- Android 10 and Above
-- Windows 10 1806 and Above
+- Android 10 及以上
+- Windows 10 1806 及以上
+- macOS 10.15 及以上 
 - Linux
 
 ## 功能 / 开发计划
@@ -45,8 +46,17 @@ A: 受限于 Anime1 网站本身的架构与设计，Anime1 不向用户提供�
 
  A: APP正常运行状态下不会加载 webview， 我们也很讨厌套壳浏览器。
 
+## 免责声明
 
- ## 致谢
+本项目基于 GNU 通用公共许可证第3版（GPL-3.0）授权。我们不对其适用性、可靠性或准确性作出任何明示或暗示的保证。在法律允许的最大范围内，作者和贡献者不承担任何因使用本软件而产生的直接、间接、偶然、特殊或后果性的损害赔偿责任。
+
+使用本项目需遵守所在地法律法规，不得进行任何侵犯第三方知识产权的行为。因使用本项目而产生的数据和缓存应在24小时内清除，超出24小时的使用需获得相关权利人的授权。
+
+## 禁止商用条款
+
+本软件仅供个人学习、研究或非商业用途。禁止将本软件用于任何商业目的，包括但不限于出售、出租、许可或以其他形式从中获利。
+
+## 致谢
 
 特别感谢 [AnimeOne](https://github.com/HQAnime/AnimeOne) 本项目使用了部分来自 AnimeOne 的代码以处理与 Anime1 的交互
 
@@ -54,7 +64,7 @@ A: 受限于 Anime1 网站本身的架构与设计，Anime1 不向用户提供�
 
 特别感谢 [Bangumi](https://bangumi.tv/) 本项目使用了 Bangumi 开放API 以提供番剧元数据。
 
-感谢 [media_kit](https://github.com/media-kit/media-kit) 本项目跨平台媒体播放能力来自 media_kit
+感谢 [fvp](https://github.com/wang-bin/fvp) 本项目跨平台媒体播放能力来自 fvp
 
 感谢 [hive](https://github.com/isar/hive) 本项目持久化储存能力来自 hive
 
